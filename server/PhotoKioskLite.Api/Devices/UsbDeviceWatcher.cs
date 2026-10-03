@@ -9,6 +9,7 @@ public sealed class UsbDeviceWatcher(
     ThumbnailQueue queue,
     ThumbnailService thumbnails,
     IHubContext<KioskHub, IKioskClient> hub,
+    IConfiguration config,
     ILogger<UsbDeviceWatcher> logger) : BackgroundService, IDeviceWatcher
 {
     private const int BatchSize = 100;
@@ -19,6 +20,11 @@ public sealed class UsbDeviceWatcher(
         IgnoreInaccessible = true,
         AttributesToSkip = FileAttributes.Hidden | FileAttributes.System,
     };
+
+    // Drives that belong to the machine, not the customer (e.g. a permanent storage HD)
+    private readonly HashSet<string> _ignored = new(
+        config.GetSection("Devices:IgnoreMounts").Get<string[]>() ?? [],
+        StringComparer.OrdinalIgnoreCase);
 
     private sealed record UsbDrive(string Root, string Label);
 
@@ -132,12 +138,14 @@ public sealed class UsbDeviceWatcher(
                      && (f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
                       || f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)));
 
-    private static UsbDrive? FindDrive()
+    private UsbDrive? FindDrive()
     {
         if (OperatingSystem.IsWindows())
         {
             var drive = DriveInfo.GetDrives()
-                .FirstOrDefault(d => d.DriveType == DriveType.Removable && d.IsReady);
+                .FirstOrDefault(d => d.DriveType == DriveType.Removable
+                                  && d.IsReady
+                                  && !_ignored.Contains(d.RootDirectory.FullName));
 
             return drive is null
                 ? null
@@ -150,7 +158,9 @@ public sealed class UsbDeviceWatcher(
         var media = Path.Combine("/media", Environment.UserName);
         if (!Directory.Exists(media)) return null;
 
-        var mount = Directory.EnumerateDirectories(media).FirstOrDefault();
+        var mount = Directory.EnumerateDirectories(media)
+            .FirstOrDefault(m => !_ignored.Contains(m));
+
         return mount is null ? null : new UsbDrive(mount, Path.GetFileName(mount));
     }
 }
