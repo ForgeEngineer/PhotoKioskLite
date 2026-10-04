@@ -5,6 +5,9 @@ using PhotoKioskLite.Api.Realtime;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Keep 404s with an empty body, like the Minimal API version (no ProblemDetails)
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(o => o.SuppressMapClientErrors = true);
 builder.Services.AddSignalR();
 builder.Services.AddPhotos();
 builder.Services.AddPrinting();
@@ -16,7 +19,7 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.MapPhotoEndpoints();
+app.MapControllers();
 app.MapHub<KioskHub>("/hubs/kiosk");
 
 // Any other route goes to Angular
