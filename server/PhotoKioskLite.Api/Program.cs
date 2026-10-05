@@ -12,7 +12,14 @@ builder.Services.AddDevices();
 
 var app = builder.Build();
 
+// Production: serve the built Angular app from wwwroot (same origin, no proxy)
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.MapPhotoEndpoints();
 app.MapHub<KioskHub>("/hubs/kiosk");
+
+// Any other route goes to Angular
+app.MapFallbackToFile("index.html");
 
 app.Run();
